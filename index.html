@@ -769,6 +769,11 @@
     .login-regions button.pressed{animation:pressPop .36s var(--ease)}
     @keyframes pressPop{0%{transform:scale(.88)}55%{transform:scale(1.05)}100%{transform:scale(1)}}
     body.signing .login-regions{pointer-events:none;opacity:.55}
+    /* placeholder buttons shown only on a first-ever visit, while the region list is on its way */
+    .login-regions .rg-skel{height:34px;border-radius:9px;border:1px solid var(--line);
+      background:linear-gradient(100deg,#eef2f8 30%,#f8fafd 50%,#eef2f8 70%);background-size:220% 100%;animation:rgShimmer 1.2s linear infinite}
+    @keyframes rgShimmer{from{background-position:120% 0}to{background-position:-100% 0}}
+    @media (prefers-reduced-motion:reduce){.login-regions .rg-skel{animation:none}}
     .login-pass{display:flex;gap:8px;margin-top:15px}
     .login-pass input{flex:1 1 auto;min-width:0;box-sizing:border-box;font-family:inherit;font-size:16px;
       min-height:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
@@ -4483,12 +4488,34 @@
         tryResumeSession();
         return;
       }
-      /* No boot payload: ask for the region list, which carries no passwords. */
+      /* No boot payload (the GitHub page): the region list must come from the
+         server. So the gate never shows an empty REGION box, the list from the
+         last visit is drawn at once and quietly refreshed; on a first-ever
+         visit, placeholder buttons hold the space until the list arrives. */
+      const cached = lsGet('regionRows');
+      const hasCache = Array.isArray(cached) && cached.some(row => pick(row,'Region'));
+      if(hasCache){
+        BOOT_REGION_ROWS = cached;
+        buildLoginRegions(cached);
+        tryResumeSession();
+      }else{
+        $('loginRegions').innerHTML = new Array(18).fill('<span class="rg-skel" aria-hidden="true"></span>').join('');
+      }
       gasCall('getRegions').then(rows => {
-        BOOT_REGION_ROWS = rows || [];
-        buildLoginRegions(BOOT_REGION_ROWS);
+        rows = Array.isArray(rows) ? rows : [];
+        if(rows.length) lsSet('regionRows',rows);
+        if(hasCache){
+          if(rows.length && JSON.stringify(rows) !== JSON.stringify(cached)){
+            BOOT_REGION_ROWS = rows;
+            buildLoginRegions(rows);
+          }
+          return;
+        }
+        BOOT_REGION_ROWS = rows;
+        buildLoginRegions(rows);
         tryResumeSession();
       },() => {
+        if(hasCache) return;
         buildLoginRegions([]);
         playGateEntrance();
       });
