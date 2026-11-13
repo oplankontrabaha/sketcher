@@ -270,6 +270,21 @@
     .user-guide[open]>summary::after{transform:rotate(180deg)}
     .user-guide[open]>summary{border-bottom:1px solid var(--line-2)}
     .user-guide .guide-body{padding:10px 14px 13px}
+    /* bouncing red pointer that draws the eye to the guide and the target-volume note */
+    .bounce-arrow{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #e11d2e;
+      filter:drop-shadow(0 2px 2px rgba(225,29,46,.35));animation:arrowBounce 1.1s cubic-bezier(.45,0,.55,1) infinite;flex:0 0 auto}
+    @keyframes arrowBounce{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+    .user-guide>summary .guide-title{display:inline-flex;align-items:center;gap:8px}
+    /* Target Volume note under step 05 */
+    .target-note{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:13px 14px;border:1px solid #f6b48e;border-radius:12px;background:#fff1e8;box-shadow:0 6px 16px rgba(242,101,34,.12)}
+    .target-note .tn-icon{flex:0 0 34px;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(145deg,#f7843f,var(--orange-dark));color:#fff;box-shadow:0 4px 10px rgba(212,83,26,.35)}
+    .target-note .tn-icon svg{width:18px;height:18px}
+    .target-note .tn-q{display:flex;align-items:flex-start;gap:8px;margin:0 0 6px;font-size:12.5px;font-weight:800;color:var(--navy);line-height:1.35}
+    .target-note .tn-q .bounce-arrow{margin-top:4px}
+    .target-note .tn-q b,.target-note .tn-a b{color:var(--orange-dark)}
+    .target-note .tn-a{margin:0;font-size:11.5px;line-height:1.55;color:#5b3a2a}
+    .target-note .tn-a a{color:var(--orange-dark);font-weight:700}
+    @media (prefers-reduced-motion:reduce){.bounce-arrow{animation:none}}
     .instructions{margin:0;padding-left:17px;color:var(--muted);font-size:11.5px;line-height:1.6}
     .instructions li{margin-bottom:4px}
 
@@ -971,8 +986,8 @@
             <div class="lock-title"><span>⚠</span><span>View only</span></div>
             <div id="editLockText"></div>
           </div>
-          <details class="user-guide">
-            <summary>User Guide</summary>
+          <details class="user-guide" open>
+            <summary><span class="guide-title"><span class="bounce-arrow" aria-hidden="true"></span>User Guide</span></summary>
             <div class="guide-body">
               <ul class="instructions">
                 <li><strong>Select the region, site, type, and name of waterway.</strong> Each box can be typed into or opened as a list, and typing a waterway name searches the whole region.</li>
@@ -1063,6 +1078,13 @@
               <div class="volume-hint" id="volumeHint" role="status"></div>
               <div class="field-error" id="errVolume" role="alert"></div>
               <div class="volume-warn" id="volumeWarn" role="status"></div>
+              <aside class="target-note" aria-label="About the target volume">
+                <span class="tn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></span>
+                <div>
+                  <p class="tn-q"><span class="bounce-arrow" aria-hidden="true"></span><span><b>Q:</b> Where do I set the Target Volume, and why can't I enter it in the registration?</span></p>
+                  <p class="tn-a"><b>A:</b> The Target Volume must be set officially and backed by an official communication, so it cannot be changed through the portal. Send the values to <a href="mailto:okb@dpwh.gov.ph">okb@dpwh.gov.ph</a> using your DPWH e-mail, together with the appropriate attachment — an official engineering plan, or a list signed by your head of office — and the OKB Task Force administrators will set them for you.</p>
+                </div>
+              </aside>
             </div>
             <div class="sel-row email-row">
               <span class="step-no" aria-hidden="true">06</span>
