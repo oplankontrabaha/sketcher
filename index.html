@@ -392,6 +392,27 @@
     .volume-head label{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
     /* the two ways to apply a figure, as a pair of small buttons beside the heading */
     .mode-switch{flex:0 0 auto;display:inline-flex;gap:5px}
+    /* the pop-up that explains the ticked mode, with a caret under its button */
+    .mode-explain{position:relative;margin:4px 0 10px;padding:11px 12px 11px 11px;display:flex;gap:10px;align-items:flex-start;
+      border:1px solid #c9d6ea;border-radius:12px;background:#f3f7fd;box-shadow:0 8px 20px rgba(11,31,58,.10);transform-origin:var(--caret-x,80%) 0}
+    .mode-explain::before{content:'';position:absolute;top:-7px;left:calc(var(--caret-x,80%) - 7px);width:12px;height:12px;background:#f3f7fd;
+      border-left:1px solid #c9d6ea;border-top:1px solid #c9d6ea;transform:rotate(45deg);transition:left .35s cubic-bezier(.2,.8,.2,1)}
+    .mode-explain.by{background:#fff4ec;border-color:#f6c4a4}
+    .mode-explain.by::before{background:#fff4ec;border-color:#f6c4a4}
+    .mode-explain.pop{animation:modePop .42s cubic-bezier(.2,1.3,.4,1)}
+    @keyframes modePop{0%{opacity:0;transform:scale(.94) translateY(-4px)}100%{opacity:1;transform:none}}
+    .mode-explain .mx-icon{flex:0 0 30px;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;
+      background:linear-gradient(145deg,#245180,#0B1F3A);box-shadow:0 4px 10px rgba(11,31,58,.28)}
+    .mode-explain.by .mx-icon{background:linear-gradient(145deg,#f7843f,var(--orange-dark));box-shadow:0 4px 10px rgba(212,83,26,.30)}
+    .mode-explain .mx-icon svg{width:17px;height:17px}
+    .mode-explain .mx-title{margin:0 0 3px;font-size:12px;font-weight:800;color:var(--navy);line-height:1.3}
+    .mode-explain .mx-text{margin:0;font-size:11.5px;line-height:1.5;color:#33415a}
+    .mode-explain .mx-eg{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:7px;font-size:11px;font-weight:700;color:var(--navy)}
+    .mode-explain .mx-eg span{padding:3px 8px;border-radius:99px;background:#fff;border:1px solid #d5deec;white-space:nowrap}
+    .mode-explain.by .mx-eg span{border-color:#f3cdb3}
+    .mode-explain .mx-eg b{color:var(--orange-dark)}
+    .mode-explain .mx-eg i{font-style:normal;color:var(--muted-2)}
+    @media (prefers-reduced-motion:reduce){.mode-explain.pop{animation:none}.mode-explain::before{transition:none}}
     .mode-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border:1.5px solid var(--line);border-radius:99px;background:#fff;color:var(--ink);font-size:11.5px;font-weight:700;line-height:1.1;white-space:nowrap;cursor:pointer;transition:border-color .15s,background .15s}
     .mode-btn::before{content:'';box-sizing:border-box;width:11px;height:11px;flex:0 0 11px;border-radius:50%;border:1.5px solid #b3c1d0;background:#fff}
     .mode-btn:hover:not(:disabled){border-color:#b3c1d0}
@@ -1081,6 +1102,7 @@
                   <button type="button" class="mode-btn" data-mode="by" role="radio" aria-checked="false" title="Enter only the new volume. It is added to the total on record." disabled>Update by</button>
                 </div>
               </div>
+              <div class="mode-explain" id="modeExplain" role="status" aria-live="polite"></div>
               <div class="volume-row">
                 <div class="volume-field">
                   <input type="text" id="volumeInput" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Select a waterway" aria-describedby="volumeLedger" disabled>
@@ -2804,8 +2826,42 @@
       const block = $('volumeBlock');
       if(block && block.scrollIntoView){ try{ block.scrollIntoView({block:'nearest'}); }catch(e){} }
     }
+    /* ---- the pop-up that explains Update to / Update by ---- */
+    const MODE_TEXT = {
+      to:{
+        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>',
+        title:'Update to = your FINAL total',
+        text:'The value you enter becomes the final value. It is the accumulated total as of the date set, and it replaces the total on record.',
+        eg:'<span>On record 1,000</span><i>→</i><span>you type 1,500</span><i>→</i><span>New total <b>1,500</b></span>'
+      },
+      by:{
+        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+        title:'Update by = only the work on the date set (one log)',
+        text:'You are only logging the accomplishment for the date set. This is useful when you want to see a breakdown of accomplishments. The system adds all these partial logs to compute your total.',
+        eg:'<span>On record 1,000</span><i>+</i><span>you type 500</span><i>→</i><span>New total <b>1,500</b></span>'
+      }
+    };
+    function paintModeExplain(animate){
+      const box = $('modeExplain');
+      if(!box) return;
+      const mode = state.volumeMode === 'by' ? 'by' : 'to';
+      const t = MODE_TEXT[mode];
+      box.className = 'mode-explain ' + mode;
+      box.innerHTML = '<span class="mx-icon" aria-hidden="true">' + t.icon + '</span><div><p class="mx-title">' + t.title +
+        '</p><p class="mx-text">' + t.text + '</p><div class="mx-eg" aria-label="Example">' + t.eg + '</div></div>';
+      /* point the caret at the ticked button */
+      const button = document.querySelector('.mode-btn[data-mode="' + mode + '"]');
+      if(button){
+        const a = button.getBoundingClientRect(), b = box.getBoundingClientRect();
+        if(b.width) box.style.setProperty('--caret-x',Math.max(18,Math.min(b.width - 18,a.left + a.width / 2 - b.left)) + 'px');
+      }
+      if(animate){ void box.offsetWidth; box.classList.add('pop'); }
+    }
+    window.addEventListener('resize',() => paintModeExplain(false));
     function setVolumeMode(mode){
+      const changed = state.volumeMode !== (mode === 'by' ? 'by' : 'to');
       state.volumeMode = mode === 'by' ? 'by' : 'to';
+      paintModeExplain(changed);
       document.querySelectorAll('.mode-btn').forEach(button => {
         const on = button.dataset.mode === state.volumeMode;
         button.classList.toggle('active',on);
@@ -4541,6 +4597,7 @@
     $('cleanedDateInput').addEventListener('focus',paintDateInput);
     $('cleanedDateClear').addEventListener('click',() => { clearDateInput(); $('cleanedDateInput').focus(); });
     paintDateInput();
+    paintModeExplain(false);
     $('zoomSelectedWaterway').addEventListener('click',zoomToSelectedWaterway);
     $('btnSubmit').addEventListener('click',openConfirm);
     $('confirmClose').addEventListener('click',closeConfirm);
