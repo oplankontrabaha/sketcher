@@ -304,6 +304,19 @@
     .sel-label{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
     .sel-row .field-error{grid-column:3;margin:4px 0 0}
     .email-row{margin-top:11px;padding-top:11px;border-top:1px solid var(--line-2)}
+    /* 06 Date cleaned: optional; blank means today */
+    .date-row{margin-top:11px;padding-top:11px;border-top:1px solid var(--line-2)}
+    .date-field{display:flex;align-items:center;gap:8px;min-width:0}
+    .date-field input[type=date]{flex:1 1 auto;min-width:0;min-height:36px;padding:6px 10px;font:600 13px var(--sans,inherit);color:var(--ink);
+      background:#fff;border:1.5px solid var(--line);border-radius:9px;transition:border-color .2s,box-shadow .2s}
+    .date-field input[type=date]:focus{outline:0;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-wash)}
+    .date-field input[type=date]:disabled{background:#f4f6fa;color:var(--muted-2);cursor:not-allowed}
+    .date-field input[type=date].is-empty{color:var(--muted-2)}
+    .date-clear{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer;transition:background .2s,border-color .2s}
+    .date-clear:hover{border-color:#c7d3e6;background:#f6f8fc}
+    .date-clear[hidden]{display:none}
+    .date-hint{grid-column:3;margin:4px 0 0;font-size:10.5px;color:var(--muted)}
+    .date-hint strong{color:var(--orange-dark)}
     .combo.no-options .combo-caret{display:none}
     .combo.no-options input[type=text]{padding-right:12px}
     .combo{position:relative;min-width:0}
@@ -1003,6 +1016,7 @@
                 <li><strong>You may view every region</strong>, but you can only sketch and submit on waterways under the region you signed in with.</li>
                 <li><strong>Volume dredged is optional</strong> and is in cubic meters (cu.m). <strong>Update to</strong> replaces the total on record with the figure you enter; <strong>Update by</strong> adds your figure to it. It is saved by the same Submit button. <strong>Percentage</strong> is the total on record as a share of the registered target volume.</li>
                 <li>The sticks beside Progress, in the bar above the map, follow the waterway from start to end: orange is cleaned, dark blue is not yet cleaned. A segment is the stretch between two neighbouring points.</li>
+                <li><strong>Date cleaned is optional.</strong> Pick the day the stretch was actually cleaned. Left blank, today's date is used. The date goes only on points you newly mark as cleaned; stretches already cleaned keep their own dates. Future dates are not accepted.</li>
                 <li><strong>Email is optional.</strong> Enter an address to receive a confirmation of the submission. Addresses used before on this device are offered as suggestions.</li>
                 <li>The <strong>round arrow button</strong> at the right end of the blue header folds the header down to one slim row, and opens it again. The choice is remembered on this device.</li>
                 <li>The <strong>magnifier button</strong> at the lower right of the map brings the open waterway, or all waterways shown, back into view.</li>
@@ -1089,8 +1103,18 @@
                 </div>
               </aside>
             </div>
-            <div class="sel-row email-row">
+            <div class="sel-row date-row">
               <span class="step-no" aria-hidden="true">06</span>
+              <label class="sel-label" for="cleanedDateInput">Date</label>
+              <div class="date-field">
+                <input type="date" id="cleanedDateInput" min="2026-01-01" aria-describedby="dateHint" disabled>
+                <button type="button" class="date-clear" id="cleanedDateClear" hidden title="Use today's date instead">Use today</button>
+              </div>
+              <div class="date-hint" id="dateHint">Date cleaned. Leave blank to use <strong>today</strong>.</div>
+              <div class="field-error" id="errDate" role="alert"></div>
+            </div>
+            <div class="sel-row email-row">
+              <span class="step-no" aria-hidden="true">07</span>
               <label class="sel-label" for="emailInput">Email</label>
               <div class="combo no-options" id="emailCombo">
                 <input type="text" id="emailInput" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Optional · for confirmation">
@@ -1211,6 +1235,7 @@
           <div class="confirm-item">Status changes<strong id="confirmChanges">0</strong></div>
           <div class="confirm-item">Volume entry<strong id="confirmVolume">None</strong></div>
           <div class="confirm-item">Total volume on record after<strong id="confirmVolumeTotal">—</strong></div>
+          <div class="confirm-item wide" id="confirmDateItem">Date cleaned (for newly marked points)<strong id="confirmDate">—</strong></div>
           <div class="confirm-item wide" id="confirmEmailItem" hidden>Confirmation email will be sent to<strong id="confirmEmail"></strong></div>
         </div>
         <div class="confirm-note">
@@ -1987,6 +2012,8 @@
       $('btnReset').disabled = !usable;
       $('btnSubmit').disabled = !usable;
       $('volumeInput').disabled = !usable;
+      $('cleanedDateInput').disabled = !usable;
+      $('cleanedDateClear').disabled = !usable;
       $('volumeInput').placeholder = usable ? '(Optional)' :
         !state.selectedWaterway ? 'Select a waterway' :
         !state.canEdit ? 'View only' : 'Opening…';
@@ -2731,6 +2758,45 @@
     function clearVolumeInput(){
       $('volumeInput').value = '';
       clearFieldError('errVolume');
+      clearDateInput();
+    }
+    /* ---- 06 Date cleaned ----
+       Optional. Blank sends nothing and the server uses today. */
+    function localDateKey(date){
+      const d = date || new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    const DATE_EARLIEST = '2026-01-01';
+    function prettyDate(key){
+      const parts = String(key).split('-').map(Number);
+      if(parts.length !== 3) return key;
+      return new Date(parts[0],parts[1] - 1,parts[2]).toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'});
+    }
+    function paintDateInput(){
+      const input = $('cleanedDateInput');
+      input.max = localDateKey();
+      const empty = !input.value;
+      input.classList.toggle('is-empty',empty);
+      $('cleanedDateClear').hidden = empty;
+      $('dateHint').innerHTML = empty
+        ? 'Date cleaned. Leave blank to use <strong>today</strong>.'
+        : 'Date cleaned: <strong>' + escapeHtml(prettyDate(input.value)) + '</strong>' +
+          (input.value === localDateKey() ? ' (today)' : '');
+    }
+    function clearDateInput(){
+      const input = $('cleanedDateInput');
+      if(!input) return;
+      input.value = '';
+      clearFieldError('errDate');
+      paintDateInput();
+    }
+    function readDateEntry(){
+      const value = String($('cleanedDateInput').value || '').trim();
+      if(!value) return {empty:true,value:''};
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(value)) return {error:'Enter the date cleaned as a calendar date.'};
+      if(value > localDateKey()) return {error:'The date cleaned cannot be in the future.'};
+      if(value < DATE_EARLIEST) return {error:'The date cleaned cannot be earlier than ' + prettyDate(DATE_EARLIEST) + '.'};
+      return {empty:false,value};
     }
     /* On a short screen the lines under the box can sit below the fold of
        the panel; bring them into view while the box is in use. */
@@ -3740,6 +3806,15 @@
         return false;
       }
       clearFieldError('errEmail');
+      /* and the date cleaned */
+      const date = readDateEntry();
+      if(date.error){
+        $('errDate').textContent = date.error;
+        showFieldError('errDate');
+        showToast(date.error,'error');
+        return false;
+      }
+      clearFieldError('errDate');
       return true;
     }
     function openConfirm(){
@@ -3752,6 +3827,10 @@
       $('confirmEmailItem').hidden = !!email.empty;
       $('confirmEmail').textContent = email.address || '';
       $('confirmChanges').textContent = String(countStatusChanges());
+      const date = readDateEntry();
+      $('confirmDate').textContent = date.empty
+        ? 'Today, ' + prettyDate(localDateKey()) + ' (no date entered)'
+        : prettyDate(date.value) + (date.value === localDateKey() ? ' (today)' : '');
       const entry = readVolumeEntry();
       const record = volumeRecord();
       const onRecord = record && isNum(record.total) ? record.total : null;
@@ -3987,7 +4066,9 @@
         /* the figures shown on this page, kept with the entry for the record */
         segments:submittedSegments,
         /* optional; one address that receives a confirmation */
-        email:email.address || ''
+        email:email.address || '',
+        /* optional; blank means the server uses today */
+        cleanedDate:readDateEntry().value || ''
       };
       let finishAnimation=null;
       try{
@@ -4450,6 +4531,16 @@
     $('discardConfirm').addEventListener('click',confirmDiscard);
     $('discardBackdrop').addEventListener('click',event => { if(event.target === $('discardBackdrop')) closeDiscard(); });
     $('btnReset').addEventListener('click',resetToLoaded);
+    $('cleanedDateInput').addEventListener('input',() => { clearFieldError('errDate'); paintDateInput(); });
+    $('cleanedDateInput').addEventListener('change',() => {
+      const date = readDateEntry();
+      if(date.error){ $('errDate').textContent = date.error; showFieldError('errDate'); }
+      else clearFieldError('errDate');
+      paintDateInput();
+    });
+    $('cleanedDateInput').addEventListener('focus',paintDateInput);
+    $('cleanedDateClear').addEventListener('click',() => { clearDateInput(); $('cleanedDateInput').focus(); });
+    paintDateInput();
     $('zoomSelectedWaterway').addEventListener('click',zoomToSelectedWaterway);
     $('btnSubmit').addEventListener('click',openConfirm);
     $('confirmClose').addEventListener('click',closeConfirm);
